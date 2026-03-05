@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: blendtape-ai
+    env: python
+    buildCommand: pip install -r requirements.txt && apt-get install -y ffmpeg
+    startCommand: gunicorn app:app --timeout 600 --workers 1
+    envVars:
+      - key: REPLICATE_KEY
+        sync: false
+    plan: free
