@@ -5,203 +5,350 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Blend Tape AI</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 16px}
-  .logo{margin:32px 0 8px;font-size:22px;font-weight:700;letter-spacing:-0.5px}
-  .logo span{color:#00FF88}
-  .sub{color:#666;font-size:13px;margin-bottom:40px}
-  .card{background:#111;border:1px solid #222;border-radius:16px;padding:28px;width:100%;max-width:480px;margin-bottom:16px}
-  .card h2{font-size:15px;font-weight:600;margin-bottom:20px;color:#aaa;text-transform:uppercase;letter-spacing:1px}
-  .drop-zone{border:2px dashed #333;border-radius:12px;padding:32px 16px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;margin-bottom:12px}
-  .drop-zone:hover,.drop-zone.drag{border-color:#00FF88;background:#00FF8808}
-  .drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-  .drop-zone .icon{font-size:28px;margin-bottom:8px}
-  .drop-zone .label{font-size:14px;color:#666}
-  .drop-zone .label strong{color:#fff}
-  .drop-zone.filled{border-color:#00FF8866;background:#00FF8808}
-  .drop-zone.filled .label{color:#00FF88}
-  .row{display:flex;gap:12px;align-items:center;margin-bottom:16px}
-  .bpm-badge{background:#00FF8820;border:1px solid #00FF8840;color:#00FF88;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
-  .btn{width:100%;padding:16px;background:#00FF88;color:#000;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.2s;letter-spacing:0.3px}
-  .btn:hover{background:#00cc6f;transform:translateY(-1px)}
-  .btn:disabled{background:#333;color:#666;cursor:not-allowed;transform:none}
-  .progress{display:none;margin-top:20px}
-  .progress.show{display:block}
-  .prog-bar-wrap{background:#222;border-radius:8px;height:6px;overflow:hidden;margin-bottom:12px}
-  .prog-bar{height:100%;background:linear-gradient(90deg,#00FF88,#00cc6f);width:0%;transition:width 0.5s;border-radius:8px}
-  .prog-status{font-size:13px;color:#888;text-align:center}
-  .result{display:none;margin-top:20px;background:#00FF8812;border:1px solid #00FF8840;border-radius:12px;padding:16px;text-align:center}
-  .result.show{display:block}
-  .result .dl-btn{display:inline-block;margin-top:12px;padding:12px 28px;background:#00FF88;color:#000;border-radius:10px;font-weight:700;text-decoration:none;font-size:15px}
-  .error-box{display:none;margin-top:16px;background:#FF443312;border:1px solid #FF443340;border-radius:12px;padding:14px;font-size:13px;color:#FF7755;text-align:center}
+  body{background:#0a0a0a;color:#f0f0f0;font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .container{width:100%;max-width:500px}
+  h1{font-family:'Bebas Neue',sans-serif;font-size:3rem;letter-spacing:2px;text-align:center;margin-bottom:4px}
+  h1 span{color:#00ff88}
+  .sub{text-align:center;color:#666;font-size:0.85rem;margin-bottom:32px;text-transform:uppercase;letter-spacing:2px}
+  .card{background:#141414;border:1px solid #222;border-radius:12px;padding:24px;margin-bottom:16px}
+  .drop-zone{border:2px dashed #333;border-radius:8px;padding:24px 20px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative}
+  .drop-zone:hover,.drop-zone.dragover{border-color:#00ff88;background:#0a1a10}
+  .drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .drop-icon{font-size:1.6rem;margin-bottom:6px}
+  .drop-label{font-size:0.75rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .drop-file{font-size:0.88rem;color:#00ff88;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .divider{text-align:center;color:#333;font-size:0.75rem;letter-spacing:2px;margin:8px 0}
+  .artist-field{margin-top:16px}
+  .artist-field label{display:block;font-size:0.75rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .artist-field input{width:100%;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:12px 14px;color:#f0f0f0;font-family:'DM Sans',sans-serif;font-size:0.9rem;outline:none;transition:border-color 0.2s}
+  .artist-field input:focus{border-color:#00ff88}
+  .artist-field input::placeholder{color:#444}
+  .btn{width:100%;padding:16px;background:#00ff88;color:#0a0a0a;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:2px;transition:all 0.2s;margin-top:12px}
+  .btn:hover{background:#00cc6a}
+  .btn:disabled{background:#222;color:#444;cursor:not-allowed}
+  .btn-outline{background:transparent;color:#00ff88;border:1px solid #00ff88}
+  .btn-outline:hover{background:#0a2a1a}
+  .btn-ghost{background:#1a1a1a;color:#666;border:1px solid #2a2a2a}
+  .btn-ghost:hover{background:#222;color:#888}
+
+  /* Analysis card */
+  .analysis-card{background:#141414;border:1px solid #222;border-radius:12px;padding:22px;margin-bottom:16px;display:none}
+  .analysis-card.show{display:block}
+  .section-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:2px;color:#444;margin-bottom:14px}
+  .bpm-row{display:flex;justify-content:space-between;margin-bottom:8px;align-items:center}
+  .bpm-label{font-size:0.82rem;color:#666}
+  .bpm-val{font-size:0.95rem;font-weight:600}
+  .score-wrap{margin:14px 0}
+  .score-top{display:flex;justify-content:space-between;margin-bottom:7px}
+  .score-top span{font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;color:#444}
+  .score-top strong{font-size:0.9rem;font-weight:700}
+  .score-bar{height:6px;background:#1e1e1e;border-radius:3px;overflow:hidden}
+  .score-fill{height:100%;border-radius:3px;transition:width 0.7s ease}
+  .rec-text{margin-top:12px;padding-top:12px;border-top:1px solid #1e1e1e;font-size:0.85rem;color:#aaa;line-height:1.5}
+
+  /* DJ Suggestions */
+  .suggestions-card{background:#141414;border:1px solid #222;border-radius:12px;padding:22px;margin-bottom:16px;display:none}
+  .suggestions-card.show{display:block}
+  .suggestion-item{background:#0f0f0f;border:1px solid #1e1e1e;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color 0.2s;text-decoration:none;display:block}
+  .suggestion-item:hover{border-color:#00ff88}
+  .suggestion-combo{font-size:0.9rem;font-weight:600;color:#f0f0f0;margin-bottom:4px}
+  .suggestion-why{font-size:0.8rem;color:#666;line-height:1.4}
+  .suggestion-cta{font-size:0.72rem;color:#00ff88;text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+
+  /* Loop modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:100;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.show{display:flex}
+  .modal{background:#141414;border:1px solid #2a2a2a;border-radius:14px;padding:28px;max-width:400px;width:100%}
+  .modal h3{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;margin-bottom:10px}
+  .modal p{color:#888;font-size:0.88rem;line-height:1.5;margin-bottom:20px}
+  .modal-actions{display:flex;flex-direction:column;gap:10px}
+
+  /* Status */
+  .status-box{background:#141414;border:1px solid #222;border-radius:12px;padding:20px;text-align:center;display:none}
+  .status-box.show{display:block}
+  .spinner{width:28px;height:28px;border:3px solid #1e1e1e;border-top-color:#00ff88;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .status-text{font-size:0.95rem;color:#aaa}
+  .download-btn{display:none;width:100%;padding:16px;background:#00ff88;color:#0a0a0a;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:2px;margin-top:12px;text-decoration:none;text-align:center}
+  .download-btn.show{display:block}
+  .error-box{background:#1a0808;border:1px solid #3a1010;border-radius:8px;padding:12px;color:#ff6666;font-size:0.82rem;margin-top:10px;display:none}
   .error-box.show{display:block}
-  .note{font-size:11px;color:#555;text-align:center;margin-top:24px;line-height:1.6}
 </style>
 </head>
 <body>
+<div class="container">
+  <h1>Blend Tape <span>AI</span></h1>
+  <p class="sub">Vocals × Beat · EQ Blend Engine</p>
 
-<div class="logo">Blend Tape <span>AI</span></div>
-<div class="sub">Vocal × Beat · AI Stem Separation</div>
-
-<div class="card">
-  <h2>Upload Tracks</h2>
-
-  <div class="drop-zone" id="vdz">
-    <input type="file" accept="audio/*" id="vfile">
-    <div class="icon">🎤</div>
-    <div class="label" id="vlabel"><strong>Vocal Track</strong><br>tap to choose file</div>
+  <!-- Upload Card -->
+  <div class="card" id="uploadCard">
+    <div class="drop-zone" id="vocalDrop">
+      <input type="file" accept="audio/mp3,audio/mpeg,.mp3" id="vocalInput">
+      <div class="drop-icon">🎤</div>
+      <div class="drop-label">Vocal Track</div>
+      <div class="drop-file" id="vocalName">Drop MP3 or tap to upload</div>
+    </div>
+    <div class="divider">+</div>
+    <div class="drop-zone" id="beatDrop">
+      <input type="file" accept="audio/mp3,audio/mpeg,.mp3" id="beatInput">
+      <div class="drop-icon">🥁</div>
+      <div class="drop-label">Beat Track</div>
+      <div class="drop-file" id="beatName">Drop MP3 or tap to upload</div>
+    </div>
+    <div class="artist-field">
+      <label>Vocal Artist Name (optional — unlocks DJ suggestions)</label>
+      <input type="text" id="artistInput" placeholder="e.g. Nipsey Hussle, Jay-Z, Kendrick...">
+    </div>
+    <button class="btn" id="blendBtn" disabled onclick="startAnalyze()">⚡ Analyze & Blend</button>
   </div>
 
-  <div class="drop-zone" id="bdz">
-    <input type="file" accept="audio/*" id="bfile">
-    <div class="icon">🎹</div>
-    <div class="label" id="blabel"><strong>Beat / Instrumental</strong><br>tap to choose file</div>
+  <!-- Analysis Card -->
+  <div class="analysis-card" id="analysisCard">
+    <div class="section-label">Track Analysis</div>
+    <div class="bpm-row"><span class="bpm-label">Vocal Track</span><span class="bpm-val" id="vocalBpmVal">—</span></div>
+    <div class="bpm-row"><span class="bpm-label">Beat Track</span><span class="bpm-val" id="beatBpmVal">—</span></div>
+    <div class="score-wrap">
+      <div class="score-top"><span>Energy Match</span><strong id="scoreLabel">—</strong></div>
+      <div class="score-bar"><div class="score-fill" id="scoreFill" style="width:0%"></div></div>
+    </div>
+    <div class="rec-text" id="recText"></div>
   </div>
 
-  <div class="row" id="bpm-row" style="display:none">
-    <span style="font-size:13px;color:#666">BPM stretch ratio:</span>
-    <span class="bpm-badge" id="bpm-badge">1.00×</span>
+  <!-- DJ Suggestions -->
+  <div class="suggestions-card" id="suggestionsCard">
+    <div class="section-label">🎧 DJ Suggestions — Try These Instead</div>
+    <div id="suggestionsList"></div>
   </div>
 
-  <button class="btn" id="blend-btn" disabled>Select both tracks to blend</button>
-
-  <div class="progress" id="progress">
-    <div class="prog-bar-wrap"><div class="prog-bar" id="prog-bar"></div></div>
-    <div class="prog-status" id="prog-status">Starting…</div>
+  <!-- Status -->
+  <div class="status-box" id="statusBox">
+    <div class="spinner" id="spinner"></div>
+    <div class="status-text" id="statusText">Starting...</div>
+    <a class="download-btn" id="downloadBtn">⬇ Download Blend MP3</a>
+    <div class="error-box" id="errorBox"></div>
   </div>
-
-  <div class="result" id="result">
-    <div style="font-size:24px;margin-bottom:8px">🎵</div>
-    <div style="font-weight:700;font-size:16px">Your blend tape is ready!</div>
-    <div style="font-size:13px;color:#aaa;margin-top:4px">Clean acapella over clean beat</div>
-    <a class="dl-btn" id="dl-link" href="#" download>⬇ Download WAV</a>
-  </div>
-
-  <div class="error-box" id="error-box"></div>
 </div>
 
-<div class="note">
-  AI processes your files in the cloud · Works on any device<br>
-  Powered by Demucs stem separation · ~2–3 min per blend
+<!-- Loop Modal -->
+<div class="modal-overlay" id="loopModal">
+  <div class="modal">
+    <h3>⚠️ Length Mismatch</h3>
+    <p id="loopModalText">Your vocal track is longer than the beat.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="startBlend(true)">🔁 Loop the beat to match vocals</button>
+      <button class="btn btn-outline" onclick="startBlend(false)">✂️ Trim to beat length</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <script>
-let vFile = null, bFile = null;
-let vBPM = null, bBPM = null;
+let vocalFile = null, beatFile = null, pollInterval = null, pendingNeedsLoop = false;
 
-function setup(inputId, dzId, labelId, type) {
-  const input = document.getElementById(inputId);
-  const dz = document.getElementById(dzId);
-  const label = document.getElementById(labelId);
-  input.addEventListener('change', () => {
-    const f = input.files[0];
-    if (!f) return;
-    if (type === 'v') vFile = f;
-    else bFile = f;
-    label.innerHTML = `<strong style="color:#00FF88">${f.name}</strong><br><span style="font-size:11px">${(f.size/1024/1024).toFixed(1)} MB</span>`;
-    dz.classList.add('filled');
+const statusLabels = {
+  starting: 'Uploading...',
+  analyzing: 'Analyzing tracks...',
+  processing: 'EQ carving frequencies...',
+  mixing: 'Mixing vocals + beat...',
+  done: '✅ Done!',
+};
+
+function fmt(s){ return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0'); }
+
+function setupDrop(dropEl, inputEl, nameEl, type) {
+  inputEl.addEventListener('change', () => {
+    const f = inputEl.files[0]; if (!f) return;
+    if (type==='vocal') vocalFile=f; else beatFile=f;
+    nameEl.textContent = f.name;
+    dropEl.style.borderColor='#00ff88';
     checkReady();
   });
-  // drag
-  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
-  dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
-  dz.addEventListener('drop', e => {
-    e.preventDefault(); dz.classList.remove('drag');
-    const f = e.dataTransfer.files[0];
-    if (!f) return;
-    if (type === 'v') vFile = f;
-    else bFile = f;
-    label.innerHTML = `<strong style="color:#00FF88">${f.name}</strong><br><span style="font-size:11px">${(f.size/1024/1024).toFixed(1)} MB</span>`;
-    dz.classList.add('filled');
-    checkReady();
+  ['dragover','dragleave','drop'].forEach(ev => {
+    dropEl.addEventListener(ev, e => {
+      e.preventDefault();
+      if (ev==='dragover') dropEl.classList.add('dragover');
+      else dropEl.classList.remove('dragover');
+      if (ev==='drop'){
+        const f=e.dataTransfer.files[0]; if(!f) return;
+        if(type==='vocal') vocalFile=f; else beatFile=f;
+        nameEl.textContent=f.name;
+        dropEl.style.borderColor='#00ff88';
+        checkReady();
+      }
+    });
   });
 }
 
-setup('vfile','vdz','vlabel','v');
-setup('bfile','bdz','blabel','b');
+setupDrop(document.getElementById('vocalDrop'),document.getElementById('vocalInput'),document.getElementById('vocalName'),'vocal');
+setupDrop(document.getElementById('beatDrop'),document.getElementById('beatInput'),document.getElementById('beatName'),'beat');
 
-function checkReady() {
-  const btn = document.getElementById('blend-btn');
-  if (vFile && bFile) {
-    btn.disabled = false;
-    btn.textContent = '🎛 Create Blend Tape';
+function checkReady(){
+  document.getElementById('blendBtn').disabled = !(vocalFile && beatFile);
+}
+
+function showAnalysis(data) {
+  const card = document.getElementById('analysisCard');
+  card.classList.add('show');
+
+  document.getElementById('vocalBpmVal').textContent = data.vocal_bpm ? data.vocal_bpm+' BPM' : 'Unknown';
+  document.getElementById('beatBpmVal').textContent = data.beat_bpm ? data.beat_bpm+' BPM' : 'Unknown';
+
+  const score = data.bpm_score;
+  const fill = document.getElementById('scoreFill');
+  const label = document.getElementById('scoreLabel');
+  const rec = document.getElementById('recText');
+
+  if (score !== null && score !== undefined) {
+    fill.style.width = score+'%';
+    if (score >= 80) {
+      fill.style.background='#00ff88'; label.style.color='#00ff88';
+      label.textContent = score+'% — These tracks were made for each other 🔥';
+      rec.textContent = '';
+    } else if (score >= 50) {
+      fill.style.background='#ffcc00'; label.style.color='#ffcc00';
+      const faster = data.vocal_bpm > data.beat_bpm;
+      label.textContent = score+'% — Close enough';
+      rec.textContent = faster
+        ? 'The beat is a little slow for the energy of these vocals — it\'ll work but might feel slightly dragged out.'
+        : 'The beat moves a little fast for these vocals — it\'ll work but might feel slightly rushed.';
+    } else {
+      fill.style.background='#ff4444'; label.style.color='#ff4444';
+      const faster = data.vocal_bpm && data.beat_bpm && data.vocal_bpm < data.beat_bpm;
+      label.textContent = score+'% — Energy mismatch ⚠️';
+      rec.textContent = faster
+        ? 'The beat you picked moves too fast for these vocals — check the DJ suggestions below for a better fit.'
+        : 'The beat you picked is too slow for these vocals — check the DJ suggestions below for a better fit.';
+    }
+  } else {
+    label.textContent = 'BPM data unavailable'; fill.style.width='0%';
+    rec.textContent = '';
   }
 }
 
-function setProgress(pct, msg) {
-  document.getElementById('prog-bar').style.width = pct + '%';
-  document.getElementById('prog-status').textContent = msg;
+function showSuggestions(suggestions) {
+  if (!suggestions || suggestions.length === 0) return;
+  const card = document.getElementById('suggestionsCard');
+  const list = document.getElementById('suggestionsList');
+  card.classList.add('show');
+  list.innerHTML = '';
+  suggestions.forEach(s => {
+    const el = document.createElement('a');
+    el.className = 'suggestion-item';
+    el.href = s.url;
+    el.target = '_blank';
+    el.innerHTML = `
+      <div class="suggestion-combo">${s.combo}</div>
+      <div class="suggestion-why">${s.why}</div>
+      <div class="suggestion-cta">Find it on Archive.org →</div>
+    `;
+    list.appendChild(el);
+  });
 }
 
-document.getElementById('blend-btn').addEventListener('click', async () => {
-  if (!vFile || !bFile) return;
-
-  const btn = document.getElementById('blend-btn');
+async function startAnalyze() {
+  const btn = document.getElementById('blendBtn');
   btn.disabled = true;
-  btn.textContent = 'Processing…';
+  btn.textContent = 'Analyzing...';
+  document.getElementById('analysisCard').classList.remove('show');
+  document.getElementById('suggestionsCard').classList.remove('show');
 
-  document.getElementById('progress').classList.add('show');
-  document.getElementById('result').classList.remove('show');
-  document.getElementById('error-box').classList.remove('show');
-
-  setProgress(5, 'Uploading files…');
+  const fd = new FormData();
+  fd.append('vocal', vocalFile);
+  fd.append('beat', beatFile);
+  const artist = document.getElementById('artistInput').value.trim();
+  if (artist) fd.append('artist_name', artist);
 
   try {
-    const form = new FormData();
-    form.append('vocal', vFile);
-    form.append('beat', bFile);
-    form.append('bpm_ratio', '1.0');
+    const res = await fetch('/analyze', {method:'POST', body:fd});
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
 
-    const resp = await fetch('/blend', { method: 'POST', body: form });
-    if (!resp.ok) { const err = await resp.json(); throw new Error(err.error || 'Upload failed'); }
-    const { job_id } = await resp.json();
+    showAnalysis(data);
+    if (data.recommendations) showSuggestions(data.recommendations);
 
-    // Poll for status
-    const statusMsgs = {
-      'starting': [8, 'Starting…'],
-      'uploading': [15, 'Uploading to cloud…'],
-      'separating_stems': [30, 'AI separating stems (this takes 2–4 min)…'],
-      'mixing': [85, 'Mixing acapella over beat…'],
-      'done': [100, 'Done!'],
-    };
-
-    while (true) {
-      await new Promise(r => setTimeout(r, 4000));
-      const sr = await fetch('/status/' + job_id);
-      const job = await sr.json();
-
-      if (job.error) throw new Error(job.error);
-
-      const [pct, msg] = statusMsgs[job.status] || [50, 'Working…'];
-      setProgress(pct, msg);
-
-      if (job.status === 'done') {
-        const dlResp = await fetch('/download/' + job_id);
-        const blob = await dlResp.blob();
-        const url = URL.createObjectURL(blob);
-        const vn = vFile.name.replace(/\.[^.]+$/,'').slice(0,20);
-        const bn = bFile.name.replace(/\.[^.]+$/,'').slice(0,20);
-        document.getElementById('dl-link').href = url;
-        document.getElementById('dl-link').download = `${vn}_x_${bn}_blend.wav`;
-        document.getElementById('result').classList.add('show');
-        btn.textContent = '🎛 Create Another Blend';
-        btn.disabled = false;
-        break;
-      }
-
-      if (job.status === 'error') throw new Error(job.error || 'Processing failed');
+    if (data.needs_loop) {
+      document.getElementById('loopModalText').textContent =
+        `Your vocal track is ${fmt(data.vocal_dur)} but the beat is only ${fmt(data.beat_dur)}. What would you like to do?`;
+      document.getElementById('loopModal').classList.add('show');
+    } else {
+      startBlend(false);
     }
-
   } catch(e) {
-    setProgress(0, '');
-    document.getElementById('progress').classList.remove('show');
-    const eb = document.getElementById('error-box');
-    eb.textContent = '❌ ' + e.message;
-    eb.classList.add('show');
+    showError(e.message);
     btn.disabled = false;
-    btn.textContent = '🎛 Try Again';
+    btn.textContent = '⚡ Analyze & Blend';
   }
-});
+}
+
+function closeModal() {
+  document.getElementById('loopModal').classList.remove('show');
+  document.getElementById('blendBtn').disabled = false;
+  document.getElementById('blendBtn').textContent = '⚡ Analyze & Blend';
+}
+
+async function startBlend(loopBeat) {
+  document.getElementById('loopModal').classList.remove('show');
+  document.getElementById('statusBox').classList.add('show');
+  document.getElementById('downloadBtn').classList.remove('show');
+  document.getElementById('errorBox').classList.remove('show');
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('statusText').textContent = 'Uploading...';
+
+  const fd = new FormData();
+  fd.append('vocal', vocalFile);
+  fd.append('beat', beatFile);
+  fd.append('loop_beat', loopBeat ? 'true' : 'false');
+
+  try {
+    const res = await fetch('/blend', {method:'POST', body:fd});
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Upload failed');
+    pollStatus(data.job_id);
+  } catch(e) {
+    showError(e.message);
+    document.getElementById('blendBtn').disabled = false;
+    document.getElementById('blendBtn').textContent = '⚡ Analyze & Blend';
+  }
+}
+
+function pollStatus(jobId) {
+  clearInterval(pollInterval);
+  pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/status/'+jobId);
+      const data = await res.json();
+      document.getElementById('statusText').textContent = statusLabels[data.status] || data.status;
+      if (data.status === 'done') {
+        clearInterval(pollInterval);
+        document.getElementById('spinner').style.display = 'none';
+        const dl = document.getElementById('downloadBtn');
+        dl.href = '/download/'+jobId;
+        dl.classList.add('show');
+        document.getElementById('blendBtn').disabled = false;
+        document.getElementById('blendBtn').textContent = '⚡ Analyze & Blend';
+      } else if (data.status === 'error') {
+        clearInterval(pollInterval);
+        showError(data.error || 'Something went wrong.');
+        document.getElementById('blendBtn').disabled = false;
+        document.getElementById('blendBtn').textContent = '⚡ Analyze & Blend';
+      }
+    } catch(e) {
+      clearInterval(pollInterval);
+      showError('Lost connection.');
+      document.getElementById('blendBtn').disabled = false;
+      document.getElementById('blendBtn').textContent = '⚡ Analyze & Blend';
+    }
+  }, 2000);
+}
+
+function showError(msg) {
+  document.getElementById('spinner').style.display = 'none';
+  document.getElementById('statusText').textContent = '❌ Failed';
+  const eb = document.getElementById('errorBox');
+  eb.textContent = msg; eb.classList.add('show');
+}
 </script>
 </body>
 </html>
