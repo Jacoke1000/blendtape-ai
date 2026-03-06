@@ -1,85 +1,86 @@
-import os, time, tempfile, requests, numpy as np
-import soundfile as sf
-import urllib.request
+import os
+import uuid
+import threading
+import subprocess
+import tempfile
 from flask import Flask, request, jsonify, send_file, render_template
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+JOBS = {}
+MAX_FILE_MB = 30
 
-DEMUCS_VERSION = 'f88aedb120e625ad464e822308515da335d50888824b975a587517068301bc0b'
+def get_duration(path):
+    try:
+        result = subprocess.run([
+            'ffprobe', '-v', 'error', '-show_entries',
+            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', path
+        ], capture_output=True, text=True, timeout=15)
+        return float(result.stdout.strip())
+    except:
+        return None
 
-def get_headers():
-    key = os.environ.get('REPLICATE_KEY', '')
-    return {'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'}
+def blend_audio(job_id, vocal_path, beat_path, workdir):
+    try:
+        JOBS[job_id]['status'] = 'analyzing'
+        vocal_dur = get_duration(vocal_path)
+        beat_dur = get_duration(beat_path)
+        if not vocal_dur or not beat_dur:
+            JOBS[job_id]['status'] = 'error'
+            JOBS[job_id]['error'] = 'Could not read audio files.'
+            return
 
-def upload_to_replicate(filepath):
-    key = os.environ.get('REPLICATE_KEY', '')
-    ext = os.path.splitext(filepath)[1].lower()
-    mime_map = {'.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.flac': 'audio/flac', '.ogg': 'audio/ogg'}
-    mimetype = mime_map.get(ext, 'audio/mpeg')
-    filename = os.path.basename(filepath)
-    with open(filepath, 'rb') as f:
-        r = requests.post(
-            'https://api.replicate.com/v1/files',
-            headers={'Authorization': f'Bearer {key}'},
-            files={'content': (filename, f, mimetype)},
-            timeout=120
-        )
-    if not r.ok:
-        raise Exception(f'Upload failed ({r.status_code}): {r.text[:300]}')
-    return r.json()['urls']['get']
+        target_dur = min(vocal_dur, beat_dur)
+        JOBS[job_id]['status'] = 'processing'
 
-def run_demucs(audio_url):
-    r = requests.post(
-        'https://api.replicate.com/v1/predictions',
-        headers=get_headers(),
-        json={'version': DEMUCS_VERSION, 'input': {'audio': audio_url, 'model': 'htdemucs', 'output_format': 'mp3', 'jobs': 0}},
-        timeout=60
-    )
-    if not r.ok:
-        raise Exception(f'Demucs start failed ({r.status_code}): {r.text[:300]}')
-    pred_id = r.json()['id']
-    for _ in range(200):
-        time.sleep(5)
-        result = requests.get(
-            f'https://api.replicate.com/v1/predictions/{pred_id}',
-            headers=get_headers(),
-            timeout=60
-        ).json()
-        if result['status'] == 'succeeded':
-            return result['output']
-        if result['status'] == 'failed':
-            raise Exception(f"Demucs failed: {result.get('error', 'unknown')}")
-    raise Exception('Demucs timed out after 16 minutes')
+        processed_vocal = os.path.join(workdir, 'vocal_processed.wav')
+        processed_beat = os.path.join(workdir, 'beat_processed.wav')
+        output_mp3 = os.path.join(workdir, 'blend_output.mp3')
 
-def download_stem(url, dest_path):
-    urllib.request.urlretrieve(url, dest_path)
-    return dest_path
+        # Process vocal: high-pass 180Hz (removes original beat bass), boost presence at 2.5k
+        vocal_filter = "highpass=f=180,equalizer=f=2500:t=o:w=1:g=2,dynaudnorm=p=0.9:m=10"
+        r = subprocess.run([
+            'ffmpeg', '-y', '-i', vocal_path, '-t', str(target_dur),
+            '-af', vocal_filter, '-ar', '44100', '-ac', '2', processed_vocal
+        ], capture_output=True, timeout=120)
+        if r.returncode != 0:
+            JOBS[job_id]['status'] = 'error'
+            JOBS[job_id]['error'] = 'Vocal processing failed: ' + r.stderr.decode()[-300:]
+            return
 
-def load_audio(path, target_sr=44100):
-    data, sr = sf.read(path, always_2d=True)
-    if data.shape[1] == 1:
-        data = np.hstack([data, data])
-    if sr != target_sr:
-        orig_len = data.shape[0]
-        new_len = int(orig_len * target_sr / sr)
-        x_old = np.linspace(0, 1, orig_len)
-        x_new = np.linspace(0, 1, new_len)
-        data = np.column_stack([
-            np.interp(x_new, x_old, data[:, 0]),
-            np.interp(x_new, x_old, data[:, 1])
-        ])
-    return data.astype(np.float32)
+        # Process beat: cut mids at 2.5k to make room for vocals, boost low-end
+        beat_filter = "equalizer=f=2500:t=o:w=2:g=-4,equalizer=f=200:t=o:w=1:g=2,dynaudnorm=p=0.7:m=10"
+        r = subprocess.run([
+            'ffmpeg', '-y', '-i', beat_path, '-t', str(target_dur),
+            '-af', beat_filter, '-ar', '44100', '-ac', '2', processed_beat
+        ], capture_output=True, timeout=120)
+        if r.returncode != 0:
+            JOBS[job_id]['status'] = 'error'
+            JOBS[job_id]['error'] = 'Beat processing failed: ' + r.stderr.decode()[-300:]
+            return
 
-def mix_and_normalize(stems_list, gains):
-    max_len = max(s.shape[0] for s in stems_list)
-    out = np.zeros((max_len, 2), dtype=np.float32)
-    for stem, gain in zip(stems_list, gains):
-        out[:stem.shape[0]] += stem * gain
-    peak = np.max(np.abs(out))
-    if peak > 0.98:
-        out = out / peak * 0.98
-    return out
+        JOBS[job_id]['status'] = 'mixing'
+
+        # Mix: vocals at 100%, beat at 85% (vocals sit on top)
+        r = subprocess.run([
+            'ffmpeg', '-y', '-i', processed_vocal, '-i', processed_beat,
+            '-filter_complex', '[0:a]volume=1.0[v];[1:a]volume=0.85[b];[v][b]amix=inputs=2:duration=shortest:normalize=0',
+            '-ar', '44100', '-ac', '2', '-b:a', '320k', output_mp3
+        ], capture_output=True, timeout=120)
+        if r.returncode != 0:
+            JOBS[job_id]['status'] = 'error'
+            JOBS[job_id]['error'] = 'Mix failed: ' + r.stderr.decode()[-300:]
+            return
+
+        JOBS[job_id]['status'] = 'done'
+        JOBS[job_id]['file'] = output_mp3
+        JOBS[job_id]['filename'] = 'blend_' + job_id[:8] + '.mp3'
+
+    except subprocess.TimeoutExpired:
+        JOBS[job_id]['status'] = 'error'
+        JOBS[job_id]['error'] = 'Timed out. Try files under 5 minutes.'
+    except Exception as e:
+        JOBS[job_id]['status'] = 'error'
+        JOBS[job_id]['error'] = str(e)
 
 @app.route('/')
 def index():
@@ -87,62 +88,39 @@ def index():
 
 @app.route('/blend', methods=['POST'])
 def blend():
-    tmp_dir = tempfile.mkdtemp()
-    try:
-        if 'vocal' not in request.files or 'beat' not in request.files:
-            return jsonify({'error': 'Missing files'}), 400
+    if 'vocal' not in request.files or 'beat' not in request.files:
+        return jsonify({'error': 'Upload both tracks.'}), 400
+    vocal_file = request.files['vocal']
+    beat_file = request.files['beat']
+    for f in [vocal_file, beat_file]:
+        f.seek(0, 2)
+        if f.tell() / (1024*1024) > MAX_FILE_MB:
+            return jsonify({'error': f'Files must be under {MAX_FILE_MB}MB.'}), 400
+        f.seek(0)
+    job_id = str(uuid.uuid4())
+    workdir = tempfile.mkdtemp()
+    vocal_path = os.path.join(workdir, 'vocal.mp3')
+    beat_path = os.path.join(workdir, 'beat.mp3')
+    vocal_file.save(vocal_path)
+    beat_file.save(beat_path)
+    JOBS[job_id] = {'status': 'starting', 'file': None, 'filename': None, 'error': None}
+    t = threading.Thread(target=blend_audio, args=(job_id, vocal_path, beat_path, workdir), daemon=True)
+    t.start()
+    return jsonify({'job_id': job_id})
 
-        vocal_file = request.files['vocal']
-        beat_file = request.files['beat']
-        bpm_ratio = float(request.form.get('bpm_ratio', 1.0))
-        vocal_name = vocal_file.filename.rsplit('.', 1)[0][:20]
-        beat_name = beat_file.filename.rsplit('.', 1)[0][:20]
+@app.route('/status/<job_id>')
+def status(job_id):
+    job = JOBS.get(job_id)
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify({'status': job['status'], 'error': job.get('error'), 'filename': job.get('filename')})
 
-        vpath = os.path.join(tmp_dir, 'vocal' + os.path.splitext(vocal_file.filename)[1])
-        bpath = os.path.join(tmp_dir, 'beat' + os.path.splitext(beat_file.filename)[1])
-        vocal_file.save(vpath)
-        beat_file.save(bpath)
-
-        vocal_url = upload_to_replicate(vpath)
-        beat_url = upload_to_replicate(bpath)
-
-        vstems = run_demucs(vocal_url)
-        bstems = run_demucs(beat_url)
-
-        acap = load_audio(download_stem(vstems['vocals'], os.path.join(tmp_dir, 'acap.mp3')))
-        drums = load_audio(download_stem(bstems['drums'], os.path.join(tmp_dir, 'drums.mp3')))
-        bass = load_audio(download_stem(bstems['bass'], os.path.join(tmp_dir, 'bass.mp3')))
-        other = load_audio(download_stem(bstems['other'], os.path.join(tmp_dir, 'other.mp3')))
-
-        if abs(bpm_ratio - 1.0) > 0.01:
-            orig_len = acap.shape[0]
-            new_len = int(orig_len / bpm_ratio)
-            x_old = np.linspace(0, 1, orig_len)
-            x_new = np.linspace(0, 1, new_len)
-            acap = np.column_stack([
-                np.interp(x_new, x_old, acap[:, 0]),
-                np.interp(x_new, x_old, acap[:, 1])
-            ]).astype(np.float32)
-
-        clean_beat = mix_and_normalize([drums, bass, other], [1.0, 1.0, 1.0])
-        final = mix_and_normalize([clean_beat, acap], [0.85, 1.1])
-
-        out_path = os.path.join(tmp_dir, 'blend.wav')
-        sf.write(out_path, final, 44100)
-
-        return send_file(
-            out_path,
-            mimetype='audio/wav',
-            as_attachment=True,
-            download_name=f'{vocal_name}_x_{beat_name}_blend.wav'
-        )
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/health')
-def health():
-    return 'OK'
+@app.route('/download/<job_id>')
+def download(job_id):
+    job = JOBS.get(job_id)
+    if not job or job['status'] != 'done':
+        return jsonify({'error': 'Not ready'}), 404
+    return send_file(job['file'], as_attachment=True, download_name=job['filename'], mimetype='audio/mpeg')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
