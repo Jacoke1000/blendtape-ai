@@ -12,12 +12,16 @@ HEADERS = {'Authorization': f'Bearer {REPLICATE_KEY}', 'Content-Type': 'applicat
 
 def upload_to_replicate(filepath):
     ext = os.path.splitext(filepath)[1].lower()
-    mimetypes = {'.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.flac': 'audio/flac', '.ogg': 'audio/ogg'}
-    mimetype = mimetypes.get(ext, 'audio/mpeg')
+    mime_map = {'.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.flac': 'audio/flac', '.ogg': 'audio/ogg'}
+    mimetype = mime_map.get(ext, 'audio/mpeg')
+    filename = os.path.basename(filepath)
     with open(filepath, 'rb') as f:
-        r = requests.post('https://api.replicate.com/v1/files',
-            headers={'Authorization': f'Bearer {REPLICATE_KEY}', 'Content-Type': mimetype},
-            data=f, timeout=120)
+        r = requests.post(
+            'https://api.replicate.com/v1/files',
+            headers={'Authorization': f'Bearer {REPLICATE_KEY}'},
+            files={'content': (filename, f, mimetype)},
+            timeout=120
+        )
     if not r.ok:
         raise Exception(f'Upload failed ({r.status_code}): {r.text[:200]}')
     return r.json()['urls']['get']
