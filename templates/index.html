@@ -144,56 +144,55 @@ document.getElementById('blend-btn').addEventListener('click', async () => {
   document.getElementById('result').classList.remove('show');
   document.getElementById('error-box').classList.remove('show');
 
-  // Animate progress while server works
-  setProgress(5, 'Uploading files to server…');
-  let fakePct = 5;
-  const ticker = setInterval(() => {
-    if (fakePct < 85) {
-      fakePct += (fakePct < 40 ? 3 : fakePct < 70 ? 1.5 : 0.5);
-      const msgs = [
-        [5,  'Uploading to cloud…'],
-        [15, 'Running AI stem separation on vocal track…'],
-        [40, 'Running AI stem separation on beat…'],
-        [70, 'Mixing acapella over clean instrumental…'],
-        [82, 'Encoding final WAV…'],
-      ];
-      let msg = 'Working…';
-      for (const [t, m] of msgs) { if (fakePct >= t) msg = m; }
-      setProgress(Math.round(fakePct), msg);
-    }
-  }, 2500);
+  setProgress(5, 'Uploading files…');
 
   try {
     const form = new FormData();
     form.append('vocal', vFile);
     form.append('beat', bFile);
-    form.append('bpm_ratio', '1.0'); // server could calculate this
+    form.append('bpm_ratio', '1.0');
 
     const resp = await fetch('/blend', { method: 'POST', body: form });
+    if (!resp.ok) { const err = await resp.json(); throw new Error(err.error || 'Upload failed'); }
+    const { job_id } = await resp.json();
 
-    clearInterval(ticker);
+    // Poll for status
+    const statusMsgs = {
+      'starting': [8, 'Starting…'],
+      'uploading': [15, 'Uploading to cloud…'],
+      'separating_stems': [30, 'AI separating stems (this takes 2–4 min)…'],
+      'mixing': [85, 'Mixing acapella over beat…'],
+      'done': [100, 'Done!'],
+    };
 
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error || 'Server error');
+    while (true) {
+      await new Promise(r => setTimeout(r, 4000));
+      const sr = await fetch('/status/' + job_id);
+      const job = await sr.json();
+
+      if (job.error) throw new Error(job.error);
+
+      const [pct, msg] = statusMsgs[job.status] || [50, 'Working…'];
+      setProgress(pct, msg);
+
+      if (job.status === 'done') {
+        const dlResp = await fetch('/download/' + job_id);
+        const blob = await dlResp.blob();
+        const url = URL.createObjectURL(blob);
+        const vn = vFile.name.replace(/\.[^.]+$/,'').slice(0,20);
+        const bn = bFile.name.replace(/\.[^.]+$/,'').slice(0,20);
+        document.getElementById('dl-link').href = url;
+        document.getElementById('dl-link').download = `${vn}_x_${bn}_blend.wav`;
+        document.getElementById('result').classList.add('show');
+        btn.textContent = '🎛 Create Another Blend';
+        btn.disabled = false;
+        break;
+      }
+
+      if (job.status === 'error') throw new Error(job.error || 'Processing failed');
     }
 
-    setProgress(100, 'Done!');
-
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const vn = vFile.name.replace(/\.[^.]+$/,'').slice(0,20);
-    const bn = bFile.name.replace(/\.[^.]+$/,'').slice(0,20);
-
-    document.getElementById('dl-link').href = url;
-    document.getElementById('dl-link').download = `${vn}_x_${bn}_blend.wav`;
-    document.getElementById('result').classList.add('show');
-
-    btn.textContent = '🎛 Create Another Blend';
-    btn.disabled = false;
-
   } catch(e) {
-    clearInterval(ticker);
     setProgress(0, '');
     document.getElementById('progress').classList.remove('show');
     const eb = document.getElementById('error-box');
