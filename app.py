@@ -10,12 +10,16 @@ REPLICATE_KEY = os.environ.get('REPLICATE_KEY', '')
 DEMUCS_VERSION = 'f88aedb120e625ad464e822308515da335d50888824b975a587517068301bc0b'
 HEADERS = {'Authorization': f'Bearer {REPLICATE_KEY}', 'Content-Type': 'application/json'}
 
-def upload_to_replicate(filepath, mimetype='audio/mpeg'):
+def upload_to_replicate(filepath):
+    ext = os.path.splitext(filepath)[1].lower()
+    mimetypes = {'.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.flac': 'audio/flac', '.ogg': 'audio/ogg'}
+    mimetype = mimetypes.get(ext, 'audio/mpeg')
     with open(filepath, 'rb') as f:
         r = requests.post('https://api.replicate.com/v1/files',
             headers={'Authorization': f'Bearer {REPLICATE_KEY}', 'Content-Type': mimetype},
             data=f, timeout=120)
-    r.raise_for_status()
+    if not r.ok:
+        raise Exception(f'Upload failed ({r.status_code}): {r.text[:200]}')
     return r.json()['urls']['get']
 
 def run_demucs(audio_url):
